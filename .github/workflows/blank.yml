@@ -1,0 +1,74 @@
+name: Wine Desktop CI
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  wine-desktop:
+    runs-on: ubuntu-latest
+    steps:
+    # 1️⃣ Checkout code (if you have configs or apps)
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    # 2️⃣ Install dependencies
+    - name: Install packages
+      run: |
+        sudo dpkg --add-architecture i386
+        sudo apt update
+        sudo apt install -y \
+          wine64 wine32 \
+          xvfb x11vnc \
+          xfce4 xfce4-terminal \
+          novnc websockify \
+          curl wget unzip
+
+    # 3️⃣ Install Cloudflared
+    - name: Install Cloudflared
+      run: |
+        wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared
+        chmod +x cloudflared
+        sudo mv cloudflared /usr/local/bin/cloudflared
+        cloudflared --version
+
+    # 4️⃣ Start virtual display
+    - name: Start Xvfb
+      run: |
+        export DISPLAY=:1
+        Xvfb :1 -screen 0 1280x720x24 &
+        sleep 2
+
+    # 5️⃣ Start XFCE desktop
+    - name: Start XFCE
+      run: |
+        export DISPLAY=:1
+        startxfce4 &
+        sleep 3
+
+    # 6️⃣ Start Wine explorer (desktop)
+    - name: Start Wine desktop
+      run: |
+        export DISPLAY=:1
+        wine64 explorer &
+        sleep 2
+
+    # 7️⃣ Start VNC server
+    - name: Start x11vnc
+      run: |
+        export DISPLAY=:1
+        x11vnc -display :1 -forever -shared -nopw &
+        sleep 2
+
+    # 8️⃣ Start noVNC
+    - name: Start noVNC
+      run: |
+        websockify --web=/usr/share/novnc/ 6080 localhost:5900 &
+        sleep 2
+
+    # 9️⃣ Start Cloudflared Tunnel
+    - name: Start Cloudflared
+      run: |
+        cloudflared tunnel --url http://localhost:6080
